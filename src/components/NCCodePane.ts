@@ -253,6 +253,30 @@ export class NCCodePane extends HTMLElement {
           border-left: 2px solid var(--vscode-editorCursor-foreground, #61afef) !important;
         }
         
+        /* ── Token colour overrides ───────────────────────────────────────────
+           The built-in GitHub theme uses #998 for comments (near-invisible on
+           white). One Dark uses #5c6370 which is fine for dark but worth
+           locking in. Block-skip lines (token "comment.line.modifier") get a
+           distinct blue so they read as "conditionally executed", not just grey.
+           Note: one_dark file name → CSS class "ace-one-dark" (hyphen).       */
+        .ace-github .ace_comment {
+            color: #6a737d !important;
+            font-style: italic;
+        }
+        .ace-github .ace_comment.ace_line.ace_modifier {
+            color: #0550ae !important;
+            font-style: normal;
+            font-weight: 600;
+        }
+        .ace-one-dark .ace_comment {
+            color: #848da0 !important;  /* brighter than default #5c6370 */
+            font-style: italic;
+        }
+        .ace-one-dark .ace_comment.ace_line.ace_modifier {
+            color: #61afef !important;
+            font-style: normal;
+        }
+
         /* Mobile touch support for text selection and copy */
         @media (max-width: 768px) {
           .ace_editor {

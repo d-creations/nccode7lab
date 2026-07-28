@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-07-28
+
+### Changed
+- **NC Code Editor — Comment Colours (Light Theme)**: Parenthesis comments `(...)` in the GitHub light theme are now rendered in `#6a737d` instead of the near-invisible `#998` default.
+- **NC Code Editor — Block-Skip Lines (Light Theme)**: Lines starting with `/` (block-skip modifier) are now highlighted in blue (`#0550ae`) to distinguish them from regular comments.
+- **NC Code Editor — Comment Colours (Dark Theme)**: Comments in the One Dark theme are now brighter (`#848da0` vs. default `#5c6370`) for better readability, with block-skip lines shown in `#61afef`.
+
 ## [1.0.2] - 2026-07-28
 
 ### Changed
