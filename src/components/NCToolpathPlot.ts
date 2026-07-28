@@ -334,7 +334,7 @@ export class NCToolpathPlot extends HTMLElement {
     clearButton?.addEventListener('click', () => this.clearPlot());
 
     const resetButton = this.shadowRoot?.getElementById('reset-camera');
-    resetButton?.addEventListener('click', () => this.resetCamera());
+    resetButton?.addEventListener('click', () => this.zoomToFit());
 
     const axesButton = this.shadowRoot?.getElementById('toggle-axes');
     axesButton?.addEventListener('click', () => this.toggleAxes());
@@ -651,6 +651,9 @@ export class NCToolpathPlot extends HTMLElement {
     if (statusElement) {
       statusElement.textContent = `Points: ${plotMetadata.points.length}, Segments: ${plotMetadata.segments.length}`;
     }
+
+    // Auto-fit camera to the new plot
+    this.zoomToFit();
   }
 
   private highlightSegment(channelId: string, lineNumber: number) {
@@ -715,9 +718,27 @@ export class NCToolpathPlot extends HTMLElement {
     this.controls.update();
   }
 
+  private getSceneCenter(): THREE.Vector3 | null {
+    if (!this.scene) return null;
+    const box = new THREE.Box3();
+    let hasContent = false;
+    this.scene.children.forEach((child) => {
+      if (child.userData.isToolpath) {
+        box.expandByObject(child);
+        hasContent = true;
+      }
+    });
+    if (!hasContent || box.isEmpty()) return null;
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    return center;
+  }
+
   // View from top (X-Y plane, looking down Z axis)
   private setViewXY() {
     if (!this.camera || !this.controls) return;
+    const center = this.getSceneCenter();
+    if (center) this.controls.target.copy(center);
     const distance = this.camera.position.distanceTo(this.controls.target);
     this.camera.position.set(
       this.controls.target.x,
@@ -731,6 +752,8 @@ export class NCToolpathPlot extends HTMLElement {
   // View from front (X-Z plane, looking along Y axis)
   private setViewXZ() {
     if (!this.camera || !this.controls) return;
+    const center = this.getSceneCenter();
+    if (center) this.controls.target.copy(center);
     const distance = this.camera.position.distanceTo(this.controls.target);
     this.camera.position.set(
       this.controls.target.x,
@@ -744,6 +767,8 @@ export class NCToolpathPlot extends HTMLElement {
   // View from side (Y-Z plane, looking along X axis)
   private setViewYZ() {
     if (!this.camera || !this.controls) return;
+    const center = this.getSceneCenter();
+    if (center) this.controls.target.copy(center);
     const distance = this.camera.position.distanceTo(this.controls.target);
     this.camera.position.set(
       this.controls.target.x + distance,
