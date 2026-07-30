@@ -63,6 +63,26 @@ def test_usb_transfer_download_and_upload_round_trip(tmp_path):
     assert "(SAVED TO USB)" in uploaded
 
 
+def test_usb_transfer_filters_and_pulls_main_and_sub_extensions(tmp_path):
+    root = tmp_path / "usb"
+    root.mkdir()
+    (root / "O1234.M").write_text("O1234\n(MAIN)\nM30\n", encoding="utf-8")
+    (root / "O1234.S").write_text("O1234\n(SUB)\nM99\n", encoding="utf-8")
+
+    client = UsbTransferClient()
+    assert client.connect(str(root)) is True
+
+    assert client.list_programs(1, [".M"])[0]["comment"] == "MAIN"
+    assert client.list_programs(2, [".S"])[0]["comment"] == "SUB"
+    assert "(MAIN)" in client.upload_program(1234, 1, [".M"])
+    assert "(SUB)" in client.upload_program(1234, 2, [".S"])
+
+    client.download_program("O2001\n(NEW MAIN)\nM30", 1, ".M")
+    client.download_program("O2002\n(NEW SUB)\nM99", 2, ".S")
+    assert (root / "O2001.M").exists()
+    assert (root / "O2002.S").exists()
+
+
 def test_usb_transfer_downloads_pa_container_as_single_file(tmp_path):
     root = tmp_path / "usb"
     root.mkdir()

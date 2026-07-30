@@ -1,5 +1,6 @@
 ﻿import platform
 import asyncio
+import json
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -28,6 +29,17 @@ def get_client(protocol: str, driver_path: Optional[str] = None) -> ProtocolClie
         return get_transfer_client(protocol, driver_path)
     except Exception as e:
         raise HTTPException(status_code=501, detail=f"Transfer protocol error: {e}")
+
+def parse_file_extensions(value: Optional[str]) -> Optional[list[str]]:
+    if value is None:
+        return None
+    try:
+        extensions = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise HTTPException(status_code=400, detail="file_extensions must be a JSON array") from error
+    if not isinstance(extensions, list) or not all(isinstance(extension, str) for extension in extensions):
+        raise HTTPException(status_code=400, detail="file_extensions must be a JSON array of strings")
+    return extensions
 
 @router.get("/ping")
 async def transfer_ping(ip_address: str, protocol: Optional[str] = None, driver_path: Optional[str] = None):
@@ -67,12 +79,13 @@ async def transfer_connect(conn: TransferConnection):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/programs/{path_no}")
-async def transfer_list_programs(path_no: int, ip_address: str, protocol: str, port: Optional[int] = None, driver_path: Optional[str] = None):
+async def transfer_list_programs(path_no: int, ip_address: str, protocol: str, port: Optional[int] = None, driver_path: Optional[str] = None, file_extensions: Optional[str] = None):
     client = get_client(protocol, driver_path)
     try:
         if not client.connect(ip_address, port):
             raise HTTPException(status_code=500, detail="Failed to connect to CNC")
-        programs = client.list_programs(path_no)
+        extensions = parse_file_extensions(file_extensions)
+        programs = client.list_programs(path_no, extensions) if protocol.lower() == "usb" else client.list_programs(path_no)
         return {"status": "success", "programs": programs}
     except TransferError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -80,12 +93,13 @@ async def transfer_list_programs(path_no: int, ip_address: str, protocol: str, p
         client.disconnect()
 
 @router.get("/upload/{path_no}/{prog_num}")
-async def transfer_upload(path_no: int, prog_num: int, ip_address: str, protocol: str, port: Optional[int] = None, driver_path: Optional[str] = None):
+async def transfer_upload(path_no: int, prog_num: int, ip_address: str, protocol: str, port: Optional[int] = None, driver_path: Optional[str] = None, file_extensions: Optional[str] = None):
     client = get_client(protocol, driver_path)
     try:
         if not client.connect(ip_address, port):
             raise HTTPException(status_code=500, detail="Failed to connect to CNC before upload")
-        program_text = client.upload_program(prog_num, path_no)
+        extensions = parse_file_extensions(file_extensions)
+        program_text = client.upload_program(prog_num, path_no, extensions) if protocol.lower() == "usb" else client.upload_program(prog_num, path_no)
         print(f"[VSCODE_NOTIFICATION] SUCCESS: Program O{prog_num} successfully pulled from CNC ({ip_address})", flush=True)
         return {"status": "success", "program_text": program_text}
     except TransferError as e:

@@ -15,7 +15,7 @@ PATH_DIR_CANDIDATES = {
     2: ("PATH2", "P2", "CH2"),
     3: ("PATH3", "P3", "CH3"),
 }
-ALLOWED_SUFFIXES = {"", ".mpf", ".spf", ".nc", ".txt", ".p1", ".p2", ".p3", ".pa", ".eia", ".min"}
+ALLOWED_SUFFIXES = {"", ".mpf", ".spf", ".nc", ".txt", ".p1", ".p2", ".p3", ".pa", ".eia", ".min", ".m", ".s"}
 
 
 class UsbTransferClient(ProtocolClient):
@@ -67,23 +67,26 @@ class UsbTransferClient(ProtocolClient):
             target_file = storage_dir / f"O{program_number:04d}.{ext}"
         target_file.write_text(normalized, encoding="utf-8", newline="\n")
 
-    def upload_program(self, prog_num: int, path_no: int = 0) -> str:
+    def upload_program(self, prog_num: int, path_no: int = 0, file_extensions: Optional[List[str]] = None) -> str:
         storage_dir = self._get_storage_dir(path_no or 1)
-        program_entry = self._find_program_entry(storage_dir, prog_num, path_no or 1)
+        program_entry = self._find_program_entry(storage_dir, prog_num, path_no or 1, file_extensions)
         if not program_entry:
             raise TransferError(USB_ERROR, f"Program O{prog_num} not found on USB path {path_no or 1}", "not found")
         return program_entry["program_text"]
 
-    def list_programs(self, path_no: int = 0) -> list:
+    def list_programs(self, path_no: int = 0, file_extensions: Optional[List[str]] = None) -> list:
         storage_dirs = self._get_list_dirs(path_no or 1)
         if not storage_dirs:
             return []
 
+        allowed_suffixes = self._normalize_extensions(file_extensions)
         programs: List[Dict[str, Any]] = []
         seen_numbers = set()
         for storage_dir in storage_dirs:
             for file_path in sorted(storage_dir.iterdir()):
                 if not file_path.is_file() or file_path.suffix.lower() not in ALLOWED_SUFFIXES:
+                    continue
+                if allowed_suffixes is not None and file_path.suffix.lower() not in allowed_suffixes:
                     continue
 
                 program_entry = self._parse_program_file(file_path)
@@ -110,18 +113,26 @@ class UsbTransferClient(ProtocolClient):
             raise TransferError(USB_ERROR, "USB storage is not connected", "not connected")
         return self.root_path
 
-    def _find_program_entry(self, storage_dir: Path, prog_num: int, path_no: int) -> Optional[Dict[str, Any]]:
-        target_ext = f".p{path_no}".lower()
+    def _find_program_entry(self, storage_dir: Path, prog_num: int, path_no: int, file_extensions: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+        configured_extensions = self._normalize_extensions(file_extensions)
+        preferred_extensions = list(configured_extensions) if configured_extensions is not None else [f".p{path_no}".lower()]
         fallback_entry = None
         for file_path in sorted(storage_dir.iterdir()):
             if not file_path.is_file() or file_path.suffix.lower() not in ALLOWED_SUFFIXES:
                 continue
             program_entry = self._parse_program_file(file_path)
             if program_entry and program_entry["number"] == prog_num:
-                if file_path.suffix.lower() == target_ext or (path_no == 0 and file_path.suffix.lower() == ".pa"):
+                if file_path.suffix.lower() in preferred_extensions or (path_no == 0 and file_path.suffix.lower() == ".pa"):
                     return program_entry
-                fallback_entry = program_entry
+                if configured_extensions is None:
+                    fallback_entry = program_entry
         return fallback_entry
+
+    @staticmethod
+    def _normalize_extensions(file_extensions: Optional[List[str]]) -> Optional[set[str]]:
+        if file_extensions is None:
+            return None
+        return {f".{extension.lstrip('.').lower()}" if extension else "" for extension in file_extensions}
 
     def _parse_program_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
         try:

@@ -205,6 +205,10 @@ export class NCTransferPanel extends HTMLElement {
     return channelExts.find(e => e !== '') ?? channelExts[0] ?? '';
   }
 
+  private getChannelFileExtensions(channelNo: number): string[] | undefined {
+    return this.getCurrentMachineFileExtensions()?.channels[channelNo.toString()];
+  }
+
   /** Returns the file extension used for PA (multi-channel assembly) programs. */
   private getPAFileExtension(): string {
     const ext = this.getCurrentMachineFileExtensions();
@@ -212,14 +216,21 @@ export class NCTransferPanel extends HTMLElement {
   }
 
   /**
-   * Returns a human-readable label for a channel button, derived from its file extension.
-   * e.g. channelNo=1 with ext ".P1" → "P1"; ext ".p-2" → "P-2"; ext "" → "P2"
+   * Returns a channel-first label so filename conventions do not obscure the CNC path.
+   * e.g. ".M" -> "P1 Main (.M)", ".S" -> "P2 Sub (.S)", ".p-2" -> "P2 (.p-2)".
    */
   private getChannelLabel(channelNo: number): string {
     const extension = this.getChannelFileExtension(channelNo);
-    if (!extension || extension === '') return `P${channelNo}`;
-    const displayExt = extension.startsWith('.') ? extension.slice(1) : extension;
-    return displayExt.toUpperCase() || `P${channelNo}`;
+    const channelLabel = `P${channelNo}`;
+    if (extension.toLowerCase() === `.p${channelNo}`) return channelLabel;
+
+    const config = this.getCurrentMachineFileExtensions();
+    const normalizedExtension = extension.toLowerCase();
+    const isMain = config?.main.some(item => item.toLowerCase() === normalizedExtension);
+    const isSub = config?.subprogram.some(item => item.toLowerCase() === normalizedExtension);
+    const role = isMain ? ' Main' : isSub ? ' Sub' : '';
+    const extensionLabel = extension || 'no ext';
+    return `${channelLabel}${role} (${extensionLabel})`;
   }
 
   /** Build a save-file name for a channel program, e.g. "O0001.P1" or "O0001" or "O0001.p-2". */
@@ -241,7 +252,7 @@ export class NCTransferPanel extends HTMLElement {
 
     for (const path of paths) {
       try {
-        const response = await this.transferClient.listPrograms(this.ipAddress, path);
+        const response = await this.transferClient.listPrograms(this.ipAddress, path, undefined, this.getChannelFileExtensions(path));
         for (const prog of response) {
           if (!this.cncPrograms.has(prog.number)) {
             this.cncPrograms.set(prog.number, {
@@ -281,7 +292,7 @@ export class NCTransferPanel extends HTMLElement {
 
         for (const p of this.getSupportedPaths()) {
             if (prog.paths[p as 1|2|3]) {
-                const resp = await this.transferClient.uploadProgram(this.ipAddress, p, progNum);
+                const resp = await this.transferClient.uploadProgram(this.ipAddress, p, progNum, undefined, this.getChannelFileExtensions(p));
                 this.fileManager.updateActiveProgramContent(p.toString(), resp);
                 
                 // Format block with <> XML-like tags matching the specified standard
@@ -319,7 +330,7 @@ export class NCTransferPanel extends HTMLElement {
 
       } else {
         const pNum = parseInt(pathNo, 10);
-        const resp = await this.transferClient.uploadProgram(this.ipAddress, pNum, progNum);
+        const resp = await this.transferClient.uploadProgram(this.ipAddress, pNum, progNum, undefined, this.getChannelFileExtensions(pNum));
         
         // Load into matching local channel
         const channelId = pNum.toString();
@@ -354,7 +365,7 @@ export class NCTransferPanel extends HTMLElement {
 
         for (const p of this.getSupportedPaths()) {
             if (prog.paths[p as 1|2|3]) {
-                const resp = await this.transferClient.uploadProgram(this.ipAddress, p, progNum);
+                const resp = await this.transferClient.uploadProgram(this.ipAddress, p, progNum, undefined, this.getChannelFileExtensions(p));
                 
                 // Format block with <> XML-like tags matching the specified standard
                 combinedContent += `<O${progNum.toString().padStart(4, '0')}.P${p}>\n`;
@@ -389,7 +400,7 @@ export class NCTransferPanel extends HTMLElement {
 
       } else {
         const pNum = parseInt(pathNo, 10);
-        const resp = await this.transferClient.uploadProgram(this.ipAddress, pNum, progNum);
+        const resp = await this.transferClient.uploadProgram(this.ipAddress, pNum, progNum, undefined, this.getChannelFileExtensions(pNum));
         
         const fileName = this.buildChannelFileName(progNum, pNum);
         if ((window as any).vscodeApi) {

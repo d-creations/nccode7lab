@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2026-07-30
+
+### Changed
+- **USB Transfer — Main and Subprogram Extensions**: Added machine-configured `.M` support for P1/main programs and `.S` support for P2/subprograms when listing, pulling, comparing, and pushing programs.
+- **Transfer Panel — Channel Labels**: Transfer actions now show the CNC channel before its configured file convention, such as `P1 Main (.M)`, `P2 Sub (.S)`, and `P2 (.p-2)`.
+- **USB Transfer — Channel Filtering**: Programs with the same O-number but different channel extensions are now kept separate and pulled from the selected channel.
+
 ## [1.0.3] - 2026-07-28
 
 ### Changed

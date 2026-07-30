@@ -25,8 +25,8 @@ class ProtocolClient:
     def download_program(self, program_text: str, path_no: int = 0, file_extension: Optional[str] = None):
         raise NotImplementedError
         
-    def upload_program(self, prog_num: int, path_no: int = 0) -> str:
+    def upload_program(self, prog_num: int, path_no: int = 0, file_extensions: Optional[List[str]] = None) -> str:
         raise NotImplementedError
         
-    def list_programs(self, path_no: int = 0) -> list:
+    def list_programs(self, path_no: int = 0, file_extensions: Optional[List[str]] = None) -> list:
         raise NotImplementedError

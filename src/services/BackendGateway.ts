@@ -86,17 +86,17 @@ export class BackendGateway {
     return response.json();
   }
 
-  async transferListPrograms(ip: string, pathNo: number, port: number, protocol: string, driverPath?: string): Promise<TransferListResponse> {
+  async transferListPrograms(ip: string, pathNo: number, port: number, protocol: string, driverPath?: string, fileExtensions?: string[]): Promise<TransferListResponse> {
     const url = await this.getTransferUrl(`programs/${pathNo}`);
-    const qs = this.buildQuery({ ip_address: ip, port, protocol, driver_path: driverPath });
+    const qs = this.buildQuery({ ip_address: ip, port, protocol, driver_path: driverPath, file_extensions: fileExtensions ? JSON.stringify(fileExtensions) : undefined });
     const response = await fetch(`${url}?${qs}`);
     if (!response.ok) throw new Error(await response.text());
     return response.json();
   }
 
-  async transferUpload(ip: string, pathNo: number, progNum: number, port: number, protocol: string, driverPath?: string): Promise<TransferUploadResponse> {
+  async transferUpload(ip: string, pathNo: number, progNum: number, port: number, protocol: string, driverPath?: string, fileExtensions?: string[]): Promise<TransferUploadResponse> {
     const url = await this.getTransferUrl(`upload/${pathNo}/${progNum}`);
-    const qs = this.buildQuery({ ip_address: ip, port, protocol, driver_path: driverPath });
+    const qs = this.buildQuery({ ip_address: ip, port, protocol, driver_path: driverPath, file_extensions: fileExtensions ? JSON.stringify(fileExtensions) : undefined });
     const response = await fetch(`${url}?${qs}`);
     if (!response.ok) throw new Error(await response.text());
     return response.json();
