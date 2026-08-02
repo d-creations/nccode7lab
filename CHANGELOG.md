@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-08-02
+
+### Changed
+- **USB Transfer — Source Extensions**: Pulled programs now retain their original USB file extension instead of always using the configured channel default.
+- **USB Transfer — Multichannel Pulls**: Combined pulls now support programs found across any configured channel combination, including P3.
+- **Transfer Panel — Simplified Actions**: Program rows now provide one Pull action with channel-specific Compare actions, and pushing is limited to the currently open file.
+
 ## [1.0.4] - 2026-07-30
 
 ### Changed

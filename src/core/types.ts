@@ -248,6 +248,7 @@ export interface TransferProgram {
   number: number;
   length: number;
   comment: string;
+  file_extension?: string;
 }
 
 export interface TransferListResponse {

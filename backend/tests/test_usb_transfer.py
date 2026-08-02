@@ -14,7 +14,12 @@ def test_usb_transfer_lists_programs_from_root_for_path_1(tmp_path):
     assert client.connect(str(root)) is True
     programs = client.list_programs(1)
 
-    assert programs == [{"number": 1234, "length": len("%\nO1234\n(ROOT DEMO)\nM30\n%\n".encode("utf-8")), "comment": "ROOT DEMO"}]
+    assert programs == [{
+        "number": 1234,
+        "length": len("%\nO1234\n(ROOT DEMO)\nM30\n%\n".encode("utf-8")),
+        "comment": "ROOT DEMO",
+        "file_extension": ".P1",
+    }]
 
 
 def test_usb_transfer_uses_path_subdirectories_when_present(tmp_path):
@@ -74,6 +79,8 @@ def test_usb_transfer_filters_and_pulls_main_and_sub_extensions(tmp_path):
 
     assert client.list_programs(1, [".M"])[0]["comment"] == "MAIN"
     assert client.list_programs(2, [".S"])[0]["comment"] == "SUB"
+    assert client.list_programs(1, [".M"])[0]["file_extension"] == ".M"
+    assert client.list_programs(2, [".S"])[0]["file_extension"] == ".S"
     assert "(MAIN)" in client.upload_program(1234, 1, [".M"])
     assert "(SUB)" in client.upload_program(1234, 2, [".S"])
 

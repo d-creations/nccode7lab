@@ -30,8 +30,6 @@ export class NCTransferPanel extends HTMLElement {
   private machineService: MachineService;
   private stateService: StateService;
   private eventBus: EventBus;
-  private fileInput?: HTMLInputElement;
-  private pendingUploadPath: string | null = null;
   private transferProtocol = 'none';
 
   
@@ -233,9 +231,9 @@ export class NCTransferPanel extends HTMLElement {
     return `${channelLabel}${role} (${extensionLabel})`;
   }
 
-  /** Build a save-file name for a channel program, e.g. "O0001.P1" or "O0001" or "O0001.p-2". */
-  private buildChannelFileName(progNum: number, channelNo: number): string {
-    const ext = this.getChannelFileExtension(channelNo);
+  /** Build a save-file name for a channel program, preserving its USB source extension when available. */
+  private buildChannelFileName(progNum: number, channelNo: number, sourceExtension?: string): string {
+    const ext = sourceExtension ?? this.getChannelFileExtension(channelNo);
     return `O${progNum.toString().padStart(4, '0')}${ext}`;
   }
 
@@ -267,8 +265,8 @@ export class NCTransferPanel extends HTMLElement {
           // @ts-ignore
           group.paths[path as keyof typeof group.paths] = prog;
           
-          // PA means the program exists in multiple channels AND the machine supports multifile
-          group.isPA = multifile && !!(group.paths[1] && group.paths[2]);
+          // A pull is combined when the program exists in multiple channels.
+          group.isPA = multifile && Object.keys(group.paths).length > 1;
           if (!group.comment && prog.comment) {
             group.comment = prog.comment;
           }
@@ -336,7 +334,10 @@ export class NCTransferPanel extends HTMLElement {
         const channelId = pNum.toString();
         this.fileManager.updateActiveProgramContent(channelId, resp);
         
-        const fileName = this.buildChannelFileName(progNum, pNum);
+        const sourceExtension = String(this.transferProtocol).toLowerCase() === 'usb'
+          ? this.cncPrograms.get(progNum)?.paths[pNum as 1 | 2 | 3]?.file_extension
+          : undefined;
+        const fileName = this.buildChannelFileName(progNum, pNum, sourceExtension);
         if ((window as any).vscodeApi) {
           (window as any).vscodeApi.postMessage({
                 type: 'SAVE_TRANSFER_FILE',
@@ -428,11 +429,6 @@ export class NCTransferPanel extends HTMLElement {
     const emptyStateText = isUsbTransfer
       ? 'Enter a local folder path (like a USB drive) and click Open.'
       : 'Please connect to a machine to browse and transfer programs.';
-    const pushHeading = isUsbTransfer ? 'Store Local File to USB' : 'Push Local File to CNC';
-    const pushHelpText = isUsbTransfer
-      ? 'Click a button to select a file and store it to the USB path:'
-      : 'Click a button to select a file from your computer:';
-
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -505,26 +501,6 @@ export class NCTransferPanel extends HTMLElement {
           padding-top: 15px;
           border-top: 1px solid var(--vscode-widget-border, #444);
         }
-        .drop-panels {
-          display: flex;
-          gap: 10px;
-          margin-top: 10px;
-        }
-        .drop-zone {
-          flex: 1;
-          border: 2px dashed var(--vscode-widget-border, #444);
-          border-radius: 4px;
-          text-align: center;
-          padding: 20px 5px;
-          color: var(--vscode-descriptionForeground, #cccccc);
-          transition: all 0.2s ease-in-out;
-          font-weight: bold;
-        }
-        .drop-zone.drag-over {
-          border-color: var(--vscode-focusBorder, #007fd4);
-          background: var(--vscode-list-hoverBackground, #2a2d2e);
-          color: var(--vscode-focusBorder, #007fd4);
-        }
         .push-active-bar {
           display: flex;
           gap: 10px;
@@ -557,14 +533,9 @@ export class NCTransferPanel extends HTMLElement {
                 <small>${prog.comment}</small>
               </div>
               <div class="actions">
-                ${prog.isPA && multifileSupported ?
-                  `${(window as any).vscodeApi ? `<button class="btn-cmp" data-path="PA" data-prog="${prog.number}">Cmp PA</button>` : ''}
-                   <button class="btn-upl" data-path="PA" data-prog="${prog.number}">Pull PA</button>` :
-                  ''
-                }
+                <button class="btn-upl" data-path="${prog.isPA && multifileSupported ? 'PA' : supportedPaths.find(path => prog.paths[path as 1|2|3]) ?? 1}" data-prog="${prog.number}">Pull</button>
                 ${supportedPaths.map(path => prog.paths[path as 1|2|3] ?
-                  `${(window as any).vscodeApi ? `<button class="btn-cmp" data-path="${path}" data-prog="${prog.number}">Cmp ${this.getChannelLabel(path)}</button>` : ''}
-                   <button class="btn-upl" data-path="${path}" data-prog="${prog.number}">Pull ${this.getChannelLabel(path)}</button>` :
+                  `${(window as any).vscodeApi ? `<button class="btn-cmp" data-path="${path}" data-prog="${prog.number}">Compare ${this.getChannelLabel(path)}</button>` : ''}` :
                   ''
                 ).join('')}
               </div>
@@ -574,16 +545,10 @@ export class NCTransferPanel extends HTMLElement {
         </div>
 
         <div class="download-panel">
-          <h3>${pushHeading}</h3>
           <div class="push-active-bar">
              <span style="align-self: center; font-size: 0.9em; flex: 1;"><strong>Push Open File:</strong></span>
              ${multifileSupported ? `<button class="btn-push-active" data-path="PA">PA</button>` : ''}
              ${supportedPaths.map(path => `<button class="btn-push-active" data-path="${path}">${this.getChannelLabel(path)}</button>`).join('')}
-          </div>
-          <span>${pushHelpText}</span>
-          <div class="drop-panels">
-            ${multifileSupported ? `<div class="drop-zone upload-zone" data-path="PA" style="cursor:pointer">Upload PA</div>` : ''}
-            ${supportedPaths.map(path => `<div class="drop-zone upload-zone" data-path="${path}" style="cursor:pointer">Upload ${this.getChannelLabel(path)}</div>`).join('')}
           </div>
         </div>
       ` : `
@@ -659,48 +624,7 @@ export class NCTransferPanel extends HTMLElement {
         });
       });
 
-      this.attachFilePickerListeners();
     }
-  }
-
-  private attachFilePickerListeners() {
-    const zones = this.shadowRoot?.querySelectorAll('.upload-zone');
-    
-    if (!this.fileInput || !this.shadowRoot?.contains(this.fileInput)) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.id = 'hidden-file-input';
-      this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', async (e: Event) => {
-        const target = e.target as HTMLInputElement;
-        const selectedPath = this.pendingUploadPath;
-
-        try {
-          if (target.files && target.files.length > 0 && selectedPath) {
-            const file = target.files[0];
-            const content = await file.text();
-            await this.uploadDroppedFile(content, selectedPath);
-          }
-        } catch (err) {
-          alert("Could not read file: " + err);
-        } finally {
-          target.value = '';
-          this.pendingUploadPath = null;
-        }
-      });
-      this.shadowRoot?.appendChild(this.fileInput);
-    }
-
-    zones?.forEach(zone => {
-      // Keep hover effects
-      zone.addEventListener('mouseenter', () => zone.classList.add('drag-over'));
-      zone.addEventListener('mouseleave', () => zone.classList.remove('drag-over'));
-      
-      zone.addEventListener('click', () => {
-        this.pendingUploadPath = (zone as HTMLElement).getAttribute('data-path');
-        this.fileInput?.click();
-      });
-    });
   }
 
   private async uploadDroppedFile(content: string, targetPath: string | null) {

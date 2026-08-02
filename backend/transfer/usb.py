@@ -98,6 +98,7 @@ class UsbTransferClient(ProtocolClient):
                     "number": program_entry["number"],
                     "length": len(program_entry["program_text"].encode("utf-8")),
                     "comment": program_entry["comment"],
+                    "file_extension": program_entry["file_path"].suffix,
                 })
 
         return sorted(programs, key=lambda item: item["number"])
