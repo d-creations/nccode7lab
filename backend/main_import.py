@@ -259,6 +259,8 @@ def set_request_user_context(request: Request, span=None) -> tuple[str, str]:
         return user_id, identity_source
 
     if span is None:
+        if not azure_monitor_enabled:
+            return user_id, identity_source
         from opentelemetry import trace
         span = trace.get_current_span()
 

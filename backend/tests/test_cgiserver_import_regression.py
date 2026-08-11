@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import builtins
 import hashlib
 import hmac
 import json
@@ -84,6 +85,22 @@ def test_azure_identity_without_hmac_key_falls_back_without_leaking_principal(mo
 
     del request.headers["x-ncedit-client-id"]
     assert api.get_request_identity(request) == ("anonymous", "none")
+
+
+def test_request_identity_does_not_require_opentelemetry_when_monitor_is_disabled(monkeypatch):
+    request = FakeRequest({})
+    request.headers["x-ncedit-client-id"] = "browser-456"
+    real_import = builtins.__import__
+
+    def reject_opentelemetry_import(name, *args, **kwargs):
+        if name == "opentelemetry" or name.startswith("opentelemetry."):
+            raise ModuleNotFoundError("No module named 'opentelemetry'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(api, "azure_monitor_enabled", False)
+    monkeypatch.setattr(builtins, "__import__", reject_opentelemetry_import)
+
+    assert api.set_request_user_context(request) == ("browser-456", "browser")
 
 
 def test_cgiserver_import_preserves_o0017_g112_xy_ij_parity_for_star_machine():
