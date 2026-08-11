@@ -1,4 +1,7 @@
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 from types import SimpleNamespace
 
@@ -20,6 +23,67 @@ def _assert_close_tuple(left, right, tolerance=1e-4):
     assert len(left) == len(right)
     for left_value, right_value in zip(left, right):
         assert abs(left_value - right_value) <= tolerance
+
+
+def test_nc_request_telemetry_uses_identity_without_program_content(monkeypatch):
+    hmac_key = bytes(range(32))
+    monkeypatch.setenv("TELEMETRY_USER_HMAC_KEY", base64.b64encode(hmac_key).decode("ascii"))
+    request = FakeRequest({})
+    request.headers["x-ms-client-principal-id"] = "azure-user-123"
+    request.headers["x-ncedit-client-id"] = "browser-456"
+
+    digest = hmac.new(
+        hmac_key,
+        b"ncedit7:appinsights-user:v1:azure-user-123",
+        hashlib.sha256,
+    ).digest()
+    expected_user_id = "v1_" + base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    assert api.get_request_identity(request) == (expected_user_id, "azure_principal")
+
+    class FakeSpan:
+        def __init__(self):
+            self.attributes = {}
+
+        def set_attribute(self, name, value):
+            self.attributes[name] = value
+
+    span = FakeSpan()
+    assert api.set_request_user_context(request, span) == (expected_user_id, "azure_principal")
+    assert span.attributes == {"enduser.pseudo.id": expected_user_id}
+    assert "azure-user-123" not in json.dumps(span.attributes)
+
+    browser_request = FakeRequest({})
+    browser_request.headers["x-ncedit-client-id"] = "browser-456"
+    browser_span = FakeSpan()
+    assert api.set_request_user_context(browser_request, browser_span) == ("browser-456", "browser")
+    assert browser_span.attributes == {"enduser.pseudo.id": "browser-456"}
+
+    summary = api.summarize_nc_request({
+        "machinedata": [
+            {"program": "SECRET NC CODE", "machineName": "FANUC", "canalNr": "1"},
+            {"program": "G1 X10", "machineName": "FANUC", "canalNr": "2"},
+        ]
+    })
+
+    assert summary == {
+        "action": "plot",
+        "channel_count": 2,
+        "program_chars": 20,
+        "machines": ["FANUC"],
+    }
+    assert "SECRET" not in json.dumps(summary)
+
+
+def test_azure_identity_without_hmac_key_falls_back_without_leaking_principal(monkeypatch):
+    monkeypatch.delenv("TELEMETRY_USER_HMAC_KEY", raising=False)
+    request = FakeRequest({})
+    request.headers["x-ms-client-principal-id"] = "azure-user-123"
+    request.headers["x-ncedit-client-id"] = "browser-456"
+
+    assert api.get_request_identity(request) == ("browser-456", "browser")
+
+    del request.headers["x-ncedit-client-id"]
+    assert api.get_request_identity(request) == ("anonymous", "none")
 
 
 def test_cgiserver_import_preserves_o0017_g112_xy_ij_parity_for_star_machine():

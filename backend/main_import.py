@@ -1,5 +1,8 @@
 import sys
 import os
+import base64
+import hashlib
+import hmac
 
 # Add root directory to sys.path to resolve 'backend' imports on Azure
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -15,6 +18,7 @@ import math
 from typing import List, Dict, Any, Optional
 import re
 import traceback
+import uuid
 from pathlib import Path
 import importlib.util
 from pydantic import BaseModel
@@ -103,7 +107,26 @@ except Exception as e:
     CNCState = None  # type: ignore
     ExceptionNode = None  # type: ignore
 
+logging.basicConfig(level=logging.INFO)
+telemetry_logger = logging.getLogger(__name__)
+azure_monitor_enabled = False
+
+if os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+    try:
+        from azure.monitor.opentelemetry import configure_azure_monitor
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        configure_azure_monitor(
+            logger_name=__name__,
+            instrumentation_options={"fastapi": {"enabled": False}},
+        )
+        azure_monitor_enabled = True
+        telemetry_logger.info("Azure Monitor telemetry enabled")
+    except Exception:
+        telemetry_logger.exception("APPLICATIONINSIGHTS_CONNECTION_STRING is set but Azure Monitor initialization failed")
+
 app = FastAPI(title="ncplot7py-adapter-import")
+if azure_monitor_enabled:
+    FastAPIInstrumentor.instrument_app(app)
 
 if transfer_router:
     app.include_router(transfer_router)
@@ -201,7 +224,64 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
-logging.basicConfig(level=logging.INFO)
+def derive_telemetry_user_id(principal_id: str) -> Optional[str]:
+    encoded_key = os.environ.get("TELEMETRY_USER_HMAC_KEY", "")
+    try:
+        key = base64.b64decode(encoded_key, validate=True)
+    except (ValueError, TypeError):
+        return None
+
+    if len(key) < 32:
+        return None
+
+    message = f"ncedit7:appinsights-user:v1:{principal_id}".encode("utf-8")
+    digest = hmac.new(key, message, hashlib.sha256).digest()
+    return "v1_" + base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def get_request_identity(request: Request) -> tuple[str, str]:
+    azure_principal_id = request.headers.get("x-ms-client-principal-id")
+    if azure_principal_id:
+        pseudonymous_id = derive_telemetry_user_id(azure_principal_id)
+        if pseudonymous_id:
+            return pseudonymous_id, "azure_principal"
+
+    browser_id = request.headers.get("x-ncedit-client-id")
+    if browser_id:
+        return browser_id, "browser"
+
+    return "anonymous", "none"
+
+
+def set_request_user_context(request: Request, span=None) -> tuple[str, str]:
+    user_id, identity_source = get_request_identity(request)
+    if user_id == "anonymous":
+        return user_id, identity_source
+
+    if span is None:
+        from opentelemetry import trace
+        span = trace.get_current_span()
+
+    span.set_attribute("enduser.pseudo.id", user_id)
+
+    return user_id, identity_source
+
+
+def summarize_nc_request(payload: Any) -> Dict[str, Any]:
+    if isinstance(payload, dict) and "action" in payload:
+        return {"action": str(payload.get("action")), "channel_count": 0, "program_chars": 0}
+
+    machinedata = payload.get("machinedata", []) if isinstance(payload, dict) else payload
+    if not isinstance(machinedata, list):
+        machinedata = []
+
+    entries = [entry for entry in machinedata if isinstance(entry, dict)]
+    return {
+        "action": "plot",
+        "channel_count": len(entries),
+        "program_chars": sum(len(str(entry.get("program", ""))) for entry in entries),
+        "machines": sorted({str(entry.get("machineName")) for entry in entries if entry.get("machineName")}),
+    }
 
 
 def apply_turn_axis_defaults(states: List[Optional[Any]], machine_name: str = "") -> None:
@@ -609,21 +689,26 @@ async def cgiserver_import(request: Request):
     if NCExecutionEngine is None or UniversalConfigDrivenControl is None:
         logging.warning("ncplot7py package not importable in this environment; some actions will be limited")
 
-    # Log incoming request path and headers for debugging proxy issues
     try:
         raw_body = await request.body()
-        logging.info("Incoming request: %s %s", request.method, request.url.path)
-        # Log a trimmed version of headers and body to avoid huge logs
-        headers_preview = {k: v for k, v in list(request.headers.items())[:10]}
-        logging.info("Headers (preview): %s", headers_preview)
-        logging.info("Body (raw preview): %s", raw_body[:1000])
-        # Parse JSON from raw body
         try:
             req = json.loads(raw_body.decode("utf-8") if raw_body else "{}")
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid JSON request body")
     except Exception:
         raise HTTPException(status_code=400, detail="Unable to read request body")
+
+    user_id, identity_source = set_request_user_context(request)
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    telemetry_logger.info("NC_REQUEST %s", json.dumps({
+        "event": "nc_program_request",
+        "request_id": request_id,
+        "user_id": user_id,
+        "identity_source": identity_source,
+        "method": request.method,
+        "path": request.url.path,
+        **summarize_nc_request(req),
+    }, separators=(",", ":")))
 
     # Ensure parser registration
     try:
@@ -668,12 +753,10 @@ async def cgiserver_import(request: Request):
         # Extract toolValues (Q quadrant 1-9 and R radius for tool compensation)
         tool_values = entry.get("toolValues", [])
         tool_values_list.append(tool_values)
-        logging.info(f"Tool values for canal {entry.get('canalNr', '1')}: {tool_values}")
         
         # Extract customVariables (user-defined variables)
         custom_vars = entry.get("customVariables", [])
         custom_variables_list.append(custom_vars)
-        logging.info(f"Custom variables for canal {entry.get('canalNr', '1')}: {custom_vars}")
 
     # Create initial CNC states with custom variables and tool data
     init_states = []
@@ -696,7 +779,7 @@ async def cgiserver_import(request: Request):
                     try:
                         state.set_parameter(var_name, float(var_value))
                     except (ValueError, TypeError):
-                        logging.warning(f"Invalid custom variable value: {var_name}={var_value}")
+                        logging.warning("Invalid custom variable value")
             
             # Store tool Q/R values in state extra for later use by tool compensation handlers
             tool_vals = tool_values_list[idx] if idx < len(tool_values_list) else []

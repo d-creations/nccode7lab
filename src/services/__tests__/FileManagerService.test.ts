@@ -172,6 +172,37 @@ G0 Y20`;
     });
   });
 
+  describe('browser persistence', () => {
+    it('should restore stored files and the active program when StateService is provided', () => {
+      const file = {
+        id: 'persisted-file',
+        name: 'saved.mpf',
+        content: 'G0 X10',
+        channels: ['G0 X10'],
+        isMultiChannel: false,
+        lastModified: 123,
+      };
+      const program = {
+        id: 'persisted-program',
+        name: 'saved.mpf',
+        content: 'G0 X10',
+        channelId: '1',
+        sourceFileId: file.id,
+        lastModified: 123,
+      };
+      localStorage.setItem('nc-files', JSON.stringify([file]));
+      localStorage.setItem('nc-programs', JSON.stringify([program]));
+      mockState.activeFileId = file.id;
+      mockState.activeProgramIds.set('1', program.id);
+
+      const restoredService = new FileManagerService(mockEventBus, mockStateService as any);
+
+      expect(restoredService.getFiles()).toEqual([file]);
+      expect(restoredService.getActiveFile()).toEqual(file);
+      expect(restoredService.getActiveProgram('1')).toEqual(program);
+    });
+  });
+
   describe('closeFile', () => {
     it('should close a file and update active file', async () => {
       const file1 = await service.openFile('c1', 'f1', { parseMultiChannel: false });

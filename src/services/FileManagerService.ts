@@ -13,10 +13,7 @@ export class FileManagerService implements IFileManagerService {
     private stateService?: StateService,
     private useLocalStorage: boolean = true
   ) {
-    // If stateService is provided, we should NOT use local storage directly in FileManagerService
-    // as StateService already handles its own persistence.
-    // However, if no stateService is provided, we fall back to private file management.
-    if (this.useLocalStorage && !this.stateService) {
+    if (this.useLocalStorage) {
       this.loadFromStorage();
     }
     

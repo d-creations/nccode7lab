@@ -27,6 +27,7 @@ export class BackendGateway {
   private config: BackendConfig;
   private abortControllers = new Map<string, AbortController>();
   private configService: IConfigService;
+  private clientId = this.getOrCreateClientId();
 
   constructor(config?: Partial<BackendConfig>) {
     this.configService = ServiceRegistry.getInstance().get(CONFIG_SERVICE_TOKEN);
@@ -159,6 +160,8 @@ export class BackendGateway {
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': API_KEY,
+            'X-NCEdit-Client-ID': this.clientId,
+            'X-Request-ID': this.createId(),
           },
           body: JSON.stringify(data),
           signal: controller.signal,
@@ -230,6 +233,26 @@ export class BackendGateway {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private createId(): string {
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  private getOrCreateClientId(): string {
+    const storageKey = 'ncedit-client-id';
+    try {
+      const existingId = localStorage.getItem(storageKey);
+      if (existingId) return existingId;
+
+      const clientId = this.createId();
+      localStorage.setItem(storageKey, clientId);
+      return clientId;
+    } catch {
+      return this.createId();
+    }
   }
 }
 

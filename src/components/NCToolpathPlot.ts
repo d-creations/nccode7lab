@@ -511,7 +511,7 @@ export class NCToolpathPlot extends HTMLElement {
 
     // Camera setup
     const aspect = container.clientWidth / container.clientHeight || 1;
-    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 10000);
     this.camera.position.set(50, 50, 50);
     this.camera.lookAt(0, 0, 0);
 
@@ -527,7 +527,7 @@ export class NCToolpathPlot extends HTMLElement {
     this.controls.dampingFactor = 0.05;
     this.controls.screenSpacePanning = true;
     this.controls.minDistance = 0.1;
-    this.controls.maxDistance = 500;
+    this.controls.maxDistance = 5000;
     this.controls.target.set(50, 25, 0);
 
     // Lighting
