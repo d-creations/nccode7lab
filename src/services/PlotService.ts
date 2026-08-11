@@ -71,11 +71,11 @@ export class PlotService {
 
     const color = segmentType ? colors[segmentType] : colors.default;
 
-    return new THREE.LineBasicMaterial({
-      color,
-      // Note: linewidth is deprecated in WebGL and has no effect in most contexts
-      // For thicker lines, consider using LineSegments2 from three/examples
-    });
+    if (segmentType === 'rapid') {
+      return new THREE.LineDashedMaterial({ color, dashSize: 2, gapSize: 1 });
+    }
+
+    return new THREE.LineBasicMaterial({ color });
   }
 
   createToolpathLine(
@@ -141,6 +141,9 @@ export class PlotService {
 
       const material = this.createPlotMaterial(type);
       const line = new THREE.LineSegments(geometry, material);
+      if (type === 'rapid') {
+        line.computeLineDistances();
+      }
 
       group.add(line);
     });
