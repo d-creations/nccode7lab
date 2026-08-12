@@ -31,6 +31,10 @@ export class NCCodePane extends HTMLElement {
   private plotClearedSubscription?: EventSubscription;
   private machineChangedSubscription?: EventSubscription;
   private templateInsertSubscription?: EventSubscription;
+  private scrollSyncSubscription?: EventSubscription;
+  private editorScrollSubscription?: EventSubscription;
+  private scrollSyncEnabled = false;
+  private isApplyingSyncedScroll = false;
   private themeObserver?: MutationObserver;
   private messageListener?: (event: MessageEvent) => void;
 
@@ -114,6 +118,37 @@ export class NCCodePane extends HTMLElement {
       },
     );
 
+    this.scrollSyncSubscription = this.eventBus.subscribe(
+      EVENT_NAMES.ALIGNMENT_SCROLL_SYNC_CHANGED,
+      (data: unknown) => {
+        const { enabled, sourceChannelId } = data as {
+          enabled: boolean;
+          sourceChannelId?: string;
+        };
+        this.scrollSyncEnabled = enabled;
+        if (enabled && sourceChannelId === this.channelId) {
+          queueMicrotask(() => {
+            this.eventBus.publish(EVENT_NAMES.EDITOR_SCROLL_CHANGED, {
+              channelId: this.channelId,
+              scrollTop: this.editor?.session.getScrollTop() ?? 0,
+            });
+          });
+        }
+      },
+    );
+
+    this.editorScrollSubscription = this.eventBus.subscribe(
+      EVENT_NAMES.EDITOR_SCROLL_CHANGED,
+      (data: unknown) => {
+        const { channelId, scrollTop } = data as { channelId: string; scrollTop: number };
+        if (!this.scrollSyncEnabled || channelId === this.channelId || !this.editor) return;
+
+        this.isApplyingSyncedScroll = true;
+        this.editor.session.setScrollTop(scrollTop);
+        this.isApplyingSyncedScroll = false;
+      },
+    );
+
     this.eventBus.subscribe('program:active_changed', (data: { channelId: string, program: NCProgram | null }) => {
       if (data.channelId === this.channelId) {
         if (data.program) {
@@ -177,6 +212,12 @@ export class NCCodePane extends HTMLElement {
     }
     if (this.templateInsertSubscription) {
       this.templateInsertSubscription.unsubscribe();
+    }
+    if (this.scrollSyncSubscription) {
+      this.scrollSyncSubscription.unsubscribe();
+    }
+    if (this.editorScrollSubscription) {
+      this.editorScrollSubscription.unsubscribe();
     }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -347,6 +388,12 @@ export class NCCodePane extends HTMLElement {
       const timingContent = this.querySelector('.timing-content') as HTMLElement;
       if (timingContent) {
         timingContent.style.transform = `translateY(-${scrollTop}px)`;
+      }
+      if (this.scrollSyncEnabled && !this.isApplyingSyncedScroll) {
+        this.eventBus.publish(EVENT_NAMES.EDITOR_SCROLL_CHANGED, {
+          channelId: this.channelId,
+          scrollTop,
+        });
       }
     });
 

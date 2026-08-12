@@ -225,6 +225,26 @@ export interface ServerMachineListResponse {
   success?: boolean;
 }
 
+export interface LineAlignmentTemplate {
+  syntax: string;
+  selectors?: string[];
+  example?: Record<string, string>;
+}
+
+export interface LineAlignmentSyntaxDefinition {
+  controlType: string;
+  waitCodeRange?: PatternRange;
+  twoChannel?: LineAlignmentTemplate;
+  threeChannel?: LineAlignmentTemplate;
+  syntax?: string;
+  example?: Record<string, string>;
+}
+
+export interface LineAlignmentSyntaxResponse {
+  lineAlignmentSyntax: LineAlignmentSyntaxDefinition[];
+  success?: boolean;
+}
+
 export interface NCFile {
   id: string;
   name: string;

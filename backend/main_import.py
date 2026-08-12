@@ -411,12 +411,43 @@ def list_machines() -> Dict[str, Any]:
         if get_machine_regex_patterns:
             machine["regexPatterns"] = get_machine_regex_patterns(machine["controlType"])
         config = get_machine_config(machine["machineName"])
+        machine["controlType"] = getattr(config, "control_type", machine["controlType"])
         machine["variablePrefix"] = getattr(config, "variable_prefix", "")
         file_extensions = getattr(config, "file_extensions", {})
         machine["fileExtensions"] = file_extensions if isinstance(file_extensions, dict) else {}
 
     return {
         "machines": machines,
+        "success": True,
+    }
+
+
+def get_line_alignment_syntax() -> Dict[str, Any]:
+    return {
+        "lineAlignmentSyntax": [
+            {
+                "controlType": "FANUC",
+                "waitCodeRange": {"min": 200, "max": 899},
+                "twoChannel": {
+                    "syntax": "M<waitCode>",
+                    "example": {"channel1": "M200", "channel2": "M200"},
+                },
+                "threeChannel": {
+                    "syntax": "M<waitCode> P<channels>",
+                    "selectors": ["P12", "P13", "P23", "P123"],
+                    "example": {
+                        "channel1": "M899 P123",
+                        "channel2": "M899 P123",
+                        "channel3": "M899 P123",
+                    },
+                },
+            },
+            {
+                "controlType": "SIEMENS",
+                "syntax": "WAITM(<marker>)",
+                "example": {"channel1": "WAITM(1)", "channel2": "WAITM(1)"},
+            },
+        ],
         "success": True,
     }
 
@@ -748,6 +779,12 @@ async def cgiserver_import(request: Request):
         action = req.get("action")
         if action in ["list_machines", "get_machines"]:
             return list_machines()
+        elif action in [
+            "get_line_alignment_syntax",
+            "get_multichannel_alignment_syntax",
+            "get_sync_syntax",
+        ]:
+            return get_line_alignment_syntax()
         else:
             raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
 

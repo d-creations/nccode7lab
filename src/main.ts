@@ -16,6 +16,7 @@ import {
   TEMPLATE_REPOSITORY_TOKEN,
   TEMPLATE_CATALOG_SERVICE_TOKEN,
   TEMPLATE_INSERTION_SERVICE_TOKEN,
+  MULTICHANNEL_ALIGNMENT_SERVICE_TOKEN,
 } from '@core/ServiceTokens';
 import { EventBus } from '@services/EventBus';
 import { StateService } from '@services/StateService';
@@ -33,6 +34,7 @@ import { BrowserHostBridgeService, VsCodeHostBridgeService } from '@services/Hos
 import { WebTemplateRepository } from '@services/templates/WebTemplateRepository';
 import { TemplateCatalogService } from '@services/templates/TemplateCatalogService';
 import { TemplateInsertionService } from '@services/templates/TemplateInsertionService';
+import { MultichannelAlignmentService } from '@services/MultichannelAlignmentService';
 import type { ExecutedProgramResult } from '@core/types';
 import { EVENT_NAMES } from '@services/EventBus';
 import '@components/NCEditorApp';
@@ -288,6 +290,12 @@ async function bootstrap() {
         const eventBus = registry.get(EVENT_BUS_TOKEN);
         return new ExecutedProgramService(backend, eventBus);
       },
+      ServiceScope.Singleton,
+    );
+
+    registry.register(
+      MULTICHANNEL_ALIGNMENT_SERVICE_TOKEN,
+      () => new MultichannelAlignmentService(registry.get(BACKEND_GATEWAY_TOKEN)),
       ServiceScope.Singleton,
     );
 

@@ -3,6 +3,7 @@
 import type {
   PlotRequest,
   PlotResponse,
+  LineAlignmentSyntaxResponse,
   ServerMachineListRequest,
   ServerMachineListResponse,
   TransferListResponse,
@@ -138,6 +139,10 @@ export class BackendGateway {
 
   async requestPlot(plotRequest: PlotRequest): Promise<PlotResponse> {
     return this.post<PlotResponse>(plotRequest);
+  }
+
+  async getLineAlignmentSyntax(): Promise<LineAlignmentSyntaxResponse> {
+    return this.post<LineAlignmentSyntaxResponse>({ action: 'get_line_alignment_syntax' });
   }
 
   async post<T>(data: unknown, requestId?: string): Promise<T> {

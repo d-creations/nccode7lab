@@ -172,6 +172,23 @@ G0 Y20`;
     });
   });
 
+  describe('updateActiveProgramContent', () => {
+    it('should publish a content change so editors receive programmatic updates', async () => {
+      await service.openFile('N10 G0 X0', 'aligned.mpf', { parseMultiChannel: false });
+      vi.clearAllMocks();
+
+      service.updateActiveProgramContent('1', '  M200\nN10 G0 X0');
+
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'program:content_changed',
+        expect.objectContaining({
+          channelId: '1',
+          program: expect.objectContaining({ content: '  M200\nN10 G0 X0' }),
+        }),
+      );
+    });
+  });
+
   describe('browser persistence', () => {
     it('should restore stored files and the active program when StateService is provided', () => {
       const file = {

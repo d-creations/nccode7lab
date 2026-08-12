@@ -64,6 +64,8 @@ export const EVENT_NAMES = {
   PLOT_CLEARED: 'plot:cleared',
   ERROR_OCCURRED: 'error:occurred',
   EDITOR_CURSOR_MOVED: 'editor:cursor_moved',
+  EDITOR_SCROLL_CHANGED: 'editor:scroll_changed',
+  ALIGNMENT_SCROLL_SYNC_CHANGED: 'alignment:scroll_sync_changed',
   TEMPLATE_INSERT_REQUEST: 'template:insert_request',
   TEMPLATES_CHANGED: 'templates:changed',
 } as const;

@@ -11,6 +11,7 @@ import { IHostBridgeService } from '../services/HostBridgeService';
 import type { ITemplateRepository } from '../services/templates/ITemplateRepository';
 import { TemplateCatalogService } from '../services/templates/TemplateCatalogService';
 import { TemplateInsertionService } from '../services/templates/TemplateInsertionService';
+import { MultichannelAlignmentService } from '../services/MultichannelAlignmentService';
 
 import { IFileManagerService } from '../services/IFileManagerService';
 import { IConfigService } from '../services/config/IConfigService';
@@ -31,3 +32,5 @@ export const HOST_BRIDGE_SERVICE_TOKEN = createServiceToken<IHostBridgeService>(
 export const TEMPLATE_REPOSITORY_TOKEN = createServiceToken<ITemplateRepository>('TemplateRepository');
 export const TEMPLATE_CATALOG_SERVICE_TOKEN = createServiceToken<TemplateCatalogService>('TemplateCatalogService');
 export const TEMPLATE_INSERTION_SERVICE_TOKEN = createServiceToken<TemplateInsertionService>('TemplateInsertionService');
+export const MULTICHANNEL_ALIGNMENT_SERVICE_TOKEN =
+  createServiceToken<MultichannelAlignmentService>('MultichannelAlignmentService');

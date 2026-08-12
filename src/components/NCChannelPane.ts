@@ -6,10 +6,12 @@ import './NCExecutedList';
 import './NCBottomPanel';
 import './NCProgramManager';
 import { ServiceRegistry } from '@core/ServiceRegistry';
-import { CONFIG_SERVICE_TOKEN, EVENT_BUS_TOKEN, HOST_BRIDGE_SERVICE_TOKEN, STATE_SERVICE_TOKEN } from '@core/ServiceTokens';
-import { EventBus, EVENT_NAMES } from '@services/EventBus';
+import { CONFIG_SERVICE_TOKEN, EVENT_BUS_TOKEN, FILE_MANAGER_SERVICE_TOKEN, HOST_BRIDGE_SERVICE_TOKEN, MULTICHANNEL_ALIGNMENT_SERVICE_TOKEN, STATE_SERVICE_TOKEN } from '@core/ServiceTokens';
+import { EventBus, EVENT_NAMES, EventSubscription } from '@services/EventBus';
 import type { IConfigService } from '@services/config/IConfigService';
 import type { IHostBridgeService } from '@services/HostBridgeService';
+import type { IFileManagerService } from '@services/IFileManagerService';
+import type { MultichannelAlignmentService } from '@services/MultichannelAlignmentService';
 
 export class NCChannelPane extends HTMLElement {
   private channelId: string = '';
@@ -17,6 +19,9 @@ export class NCChannelPane extends HTMLElement {
   private stateService: import('@services/StateService').StateService;
   private configService: IConfigService;
   private hostBridge: IHostBridgeService;
+  private fileManager: IFileManagerService;
+  private alignmentService: MultichannelAlignmentService;
+  private scrollSyncSubscription?: EventSubscription;
   private showEmbeddedBottomPanel = true;
 
   static get observedAttributes() {
@@ -30,6 +35,8 @@ export class NCChannelPane extends HTMLElement {
     this.stateService = registry.get(STATE_SERVICE_TOKEN);
     this.configService = registry.get(CONFIG_SERVICE_TOKEN);
     this.hostBridge = registry.get(HOST_BRIDGE_SERVICE_TOKEN);
+    this.fileManager = registry.get(FILE_MANAGER_SERVICE_TOKEN);
+    this.alignmentService = registry.get(MULTICHANNEL_ALIGNMENT_SERVICE_TOKEN);
   }
 
   attributeChangedCallback(name: string, _oldValue: string, newValue: string) {
@@ -44,6 +51,17 @@ export class NCChannelPane extends HTMLElement {
     this.showEmbeddedBottomPanel = config.hostMode !== 'vscode-editor';
     this.render();
     this.setupEventListeners();
+    this.scrollSyncSubscription = this.eventBus.subscribe(
+      EVENT_NAMES.ALIGNMENT_SCROLL_SYNC_CHANGED,
+      (data: unknown) => {
+        const { enabled } = data as { enabled: boolean };
+        this.querySelector('#align-channels')?.classList.toggle('active', enabled);
+      },
+    );
+  }
+
+  disconnectedCallback() {
+    this.scrollSyncSubscription?.unsubscribe();
   }
 
   private setupEventListeners() {
@@ -51,6 +69,8 @@ export class NCChannelPane extends HTMLElement {
     const overlay = this.querySelector('#sidebar-overlay');
     const sidebarToggle = this.querySelector('#sidebar-toggle');
     const programsToggle = this.querySelector('#programs-toggle');
+    const alignButton = this.querySelector('#align-channels') as HTMLButtonElement | null;
+    const removeAlignmentButton = this.querySelector('#remove-alignment') as HTMLButtonElement | null;
     
     const keywordPanel = this.querySelector('nc-keyword-panel') as HTMLElement;
     const toolsPanel = this.querySelector('.channel-tools-panel') as HTMLElement;
@@ -105,6 +125,8 @@ export class NCChannelPane extends HTMLElement {
     sidebarToggle?.addEventListener('click', toggleTools);
     programsToggle?.addEventListener('click', togglePrograms);
     overlay?.addEventListener('click', hideSidebar);
+    alignButton?.addEventListener('click', () => this.updateChannelAlignment('align'));
+    removeAlignmentButton?.addEventListener('click', () => this.updateChannelAlignment('remove'));
 
     // Plot button
     const plotButton = this.querySelector('#plot-channel-btn');
@@ -149,6 +171,43 @@ export class NCChannelPane extends HTMLElement {
     }) as EventListener);
   }
 
+  private async updateChannelAlignment(action: 'align' | 'remove'): Promise<void> {
+    const buttons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('#align-channels, #remove-alignment'),
+    );
+
+    try {
+      buttons.forEach((button) => { button.disabled = true; });
+      const state = this.stateService.getState();
+      const controlType = state.activeMachine?.controlType;
+      if (!controlType) throw new Error('Select a machine before aligning channels');
+
+      const programs = this.stateService.getActiveChannels().map((channel) => ({
+        channelId: channel.id,
+        program: this.fileManager.getActiveProgram(channel.id)?.content ?? channel.program,
+      }));
+      const result = action === 'align'
+        ? await this.alignmentService.alignPrograms(programs, controlType)
+        : await this.alignmentService.removeAlignment(programs, controlType);
+
+      result.programs.forEach(({ channelId, program }) => {
+        this.fileManager.updateActiveProgramContent(channelId, program);
+      });
+      this.eventBus.publish(EVENT_NAMES.ALIGNMENT_SCROLL_SYNC_CHANGED, {
+        enabled: action === 'align',
+        sourceChannelId: this.channelId,
+      });
+    } catch (error) {
+      console.error('Channel alignment failed:', error);
+      const clickedButton = action === 'align'
+        ? this.querySelector('#align-channels')
+        : this.querySelector('#remove-alignment');
+      if (clickedButton && error instanceof Error) clickedButton.setAttribute('title', error.message);
+    } finally {
+      buttons.forEach((button) => { button.disabled = false; });
+    }
+  }
+
   private render() {
     this.innerHTML = `
       <style>
@@ -188,6 +247,14 @@ export class NCChannelPane extends HTMLElement {
         .channel-button.active {
           background: var(--vscode-button-background, #61afef);
           color: var(--vscode-button-foreground, #1f2329);
+        }
+        .alignment-button {
+          width: 26px;
+          min-width: 26px;
+          padding: 2px;
+          font-family: 'Consolas', monospace;
+          font-size: 13px;
+          font-weight: 700;
         }
         .channel-content {
           display: flex;
@@ -277,6 +344,8 @@ export class NCChannelPane extends HTMLElement {
       <div class="channel-header">
         <span>Channel ${this.channelId}</span>
         <div class="channel-controls">
+          <button class="channel-button alignment-button" id="align-channels" title="Align active channels and synchronize scrolling" aria-label="Align active channels">=</button>
+          <button class="channel-button alignment-button" id="remove-alignment" title="Remove channel alignment and stop synchronized scrolling" aria-label="Remove channel alignment">/=</button>
           <button class="channel-button" id="programs-toggle">Programs</button>
           <button class="channel-button" id="plot-channel-btn">▶️ Plot</button>
           <button class="channel-button mobile-sidebar-toggle" id="sidebar-toggle">Tools & Keywords</button>

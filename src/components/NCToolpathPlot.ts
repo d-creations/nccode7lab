@@ -451,8 +451,10 @@ export class NCToolpathPlot extends HTMLElement {
         };
       });
 
-      // Execute the programs to get plot data
-      const results = await this.executedProgramService.executeMultipleChannels(requests);
+      // Channel-header Plot requests must remain single-channel backend requests.
+      const results = targetChannelId
+        ? [await this.executedProgramService.executeProgram(requests[0])]
+        : await this.executedProgramService.executeMultipleChannels(requests);
 
       // Clear existing plot before adding new ones
       // Note: If we are plotting a single channel, we might want to keep others?

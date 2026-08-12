@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2026-08-12
+
+### Added
+- **Multichannel Alignment Controls**: Added symbol-only `=` and `/=` actions to each channel header for explicitly applying or removing visual alignment across two or three active channels.
+- **Aligned Channel Scrolling**: Applying alignment synchronizes vertical scrolling across channel editors; removing alignment disables synchronized scrolling.
+
+### Changed
+- **Server-Defined Alignment Syntax**: Synchronization markers are always detected using the CGI `get_line_alignment_syntax` response, with no hardcoded control syntax or fallback matching in the client.
+- **Reversible Alignment Lines**: Visual alignment uses separate two-space padding lines, and removal is limited to padding adjacent to shared markers matching the server-provided syntax.
+- **Machine Control Families**: The backend machine list now returns canonical configured control families, allowing machine profiles such as `FANUC_MILL` to resolve the shared `FANUC` alignment syntax.
+- **Plot Interface and Execution**: Alignment controls are no longer shown in the plot area, and plotting does not add, remove, or recalculate channel alignment; it executes the current editor content unchanged.
+- **Channel Plot Requests**: The Plot button in a channel header now sends only that channel to the backend instead of using a multichannel request.
+- **Alignment Matching**: Two-space padding lines are added only around unique synchronization markers matched from the server-provided syntax and shared in the same order by every active channel; no fallback matching is used.
+
 ## [1.0.5] - 2026-08-02
 
 ### Changed

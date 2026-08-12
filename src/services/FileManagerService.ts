@@ -46,10 +46,13 @@ export class FileManagerService implements IFileManagerService {
     const activeProgram = this.getActiveProgram(channelId);
     if (!activeProgram) return;
 
+    if (activeProgram.content === content) return;
+
     // Optional: Could trigger undo snapshot here if we want to undo text edits via global state
     activeProgram.content = content;
     activeProgram.lastModified = Date.now();
     this.saveToStorage();
+    this.eventBus.publish('program:content_changed', { channelId, program: activeProgram });
   }
 
   public setActiveProgram(channelId: string, programId: string) {

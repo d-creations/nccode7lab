@@ -153,6 +153,37 @@ def test_request_identity_does_not_require_opentelemetry_when_monitor_is_disable
     assert api.set_request_user_context(request) == ("browser-456", "browser")
 
 
+def test_cgiserver_import_returns_line_alignment_syntax():
+    body = asyncio.run(api.cgiserver_import(FakeRequest({
+        "action": "get_line_alignment_syntax",
+    })))
+
+    assert body["success"] is True
+    definitions = {
+        definition["controlType"]: definition
+        for definition in body["lineAlignmentSyntax"]
+    }
+    assert definitions["FANUC"]["twoChannel"]["syntax"] == "M<waitCode>"
+    assert definitions["FANUC"]["threeChannel"]["syntax"] == "M<waitCode> P<channels>"
+    assert definitions["SIEMENS"]["syntax"] == "WAITM(<marker>)"
+
+
+def test_list_machines_uses_configured_control_family(monkeypatch):
+    machine = {"machineName": "FANUC_MILL", "controlType": "FANUC_MILL"}
+    config = SimpleNamespace(
+        control_type="FANUC",
+        variable_prefix="#",
+        file_extensions={},
+    )
+    monkeypatch.setattr(api, "get_available_machines", lambda: [machine])
+    monkeypatch.setattr(api, "get_machine_regex_patterns", lambda _control_type: {})
+    monkeypatch.setattr(api, "get_machine_config", lambda _machine_name: config)
+
+    body = api.list_machines()
+
+    assert body["machines"][0]["controlType"] == "FANUC"
+
+
 def test_cgiserver_import_preserves_o0017_g112_xy_ij_parity_for_star_machine():
     g112_program = """
 G18

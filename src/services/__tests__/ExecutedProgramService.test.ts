@@ -397,5 +397,22 @@ describe('ExecutedProgramService', () => {
       expect(result.timingData.get(1)).toBeUndefined();
       expect(result.timingData.get(2)).toBe(0.6);
     });
+
+    it('should execute multiple channels without applying alignment', async () => {
+      vi.mocked(mockBackend.requestPlot).mockResolvedValue({ canal: {} });
+
+      await service.executeMultipleChannels(
+        [
+          { channelId: '1', program: 'N10 G0 X0\nN20 G1 X1', machineName: 'CUSTOM_MACHINE' },
+          { channelId: '2', program: 'N10 G0 Z0\nN20 G1 Z1', machineName: 'CUSTOM_MACHINE' },
+        ],
+      );
+
+      expect(mockBackend.getLineAlignmentSyntax).not.toHaveBeenCalled();
+      expect(vi.mocked(mockBackend.requestPlot).mock.calls[0][0].machinedata).toEqual([
+        expect.objectContaining({ program: 'N10 G0 X0\nN20 G1 X1' }),
+        expect.objectContaining({ program: 'N10 G0 Z0\nN20 G1 Z1' }),
+      ]);
+    });
   });
 });
