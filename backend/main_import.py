@@ -318,11 +318,14 @@ if STATIC_DIR is not None:
     # The built Vite app places hashed assets under `assets/`.
     assets_dir = STATIC_DIR / "assets"
     favicon_dir = STATIC_DIR / "favicon"
+    branding_dir = STATIC_DIR / "branding"
     images_dir = STATIC_DIR / "images"
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
     if favicon_dir.exists():
         app.mount("/favicon", StaticFiles(directory=str(favicon_dir)), name="favicon")
+    if branding_dir.exists():
+        app.mount("/branding", StaticFiles(directory=str(branding_dir)), name="branding")
     if images_dir.exists():
         app.mount("/images", StaticFiles(directory=str(images_dir)), name="images")
 
@@ -356,7 +359,7 @@ async def favicon_svg():
 
 @app.get("/favicon.ico")
 async def favicon_ico():
-    return RedirectResponse(url="/favicon/favicon.svg", status_code=307)
+    return RedirectResponse(url="/branding/web/favicon-32.png", status_code=307)
 
 
 @app.get("/api/syntax/{control_type}")
@@ -424,10 +427,12 @@ async def api_machines():
 
 
 def build_segments_from_engine_output(canal_output: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert NCExecutionEngine canal output to the legacy response shape."""
+    """Convert NCExecutionEngine canal output to the frontend response shape."""
     segments = []
     timing = []
-    executed_lines = canal_output.get("programExec", [])
+    executed_node_lines = canal_output.get("programExec", [])
+    motion_line_numbers = []
+    line_timing = {}
     variables = canal_output.get("variables", {})
     named_variables = canal_output.get("namedVariables", {})
 
@@ -451,24 +456,41 @@ def build_segments_from_engine_output(canal_output: Dict[str, Any]) -> Dict[str,
                 "z": z[point_idx] if point_idx < len(z) else (z[-1] if len(z) > 0 else 0),
             })
 
+        geometry = entry.get("geometry")
+        traversal = entry.get("traversal")
+        source_code = entry.get("sourceCode")
+
+        line_number = entry.get("lineNumber")
+        if line_number is None and idx < len(executed_node_lines):
+            line_number = executed_node_lines[idx]
+
         seg = {
-            "type": "RAPID" if (not t or float(t) == 0) else "LINEAR",
-            "lineNumber": entry.get("lineNumber", executed_lines[idx] if idx < len(executed_lines) else None),
+            "geometry": geometry,
+            "traversal": traversal,
+            "sourceCode": source_code,
+            "lineNumber": line_number,
             "toolNumber": 1,
             "points": points,
         }
         segments.append(seg)
         try:
-            timing.append(float(t))
+            segment_time = float(t)
         except Exception:
-            timing.append(0.0)
+            segment_time = 0.0
+        timing.append(segment_time)
+        motion_line_numbers.append(line_number)
+        if line_number is not None:
+            line_key = str(line_number)
+            line_timing[line_key] = line_timing.get(line_key, 0.0) + segment_time
 
     return {
         "segments": segments,
-        "executedLines": executed_lines,
+        "executedLines": motion_line_numbers,
+        "executedNodeLines": executed_node_lines,
         "variables": variables if isinstance(variables, dict) else {},
         "namedVariables": named_variables if isinstance(named_variables, dict) else {},
         "timing": timing,
+        "lineTiming": line_timing,
     }
 
 
@@ -625,7 +647,9 @@ def mock_parse_nc_program(program: str, machine_name: str) -> Dict[str, Any]:
 
             # Create segment
             segment = {
-                "type": "RAPID" if line.startswith('G0') else "LINEAR",
+                "geometry": "LINEAR",
+                "traversal": "RAPID" if line.startswith('G0') else "FEED",
+                "sourceCode": "G00" if line.startswith('G0') else "G01",
                 "lineNumber": i + 1,
                 "toolNumber": 1,
                 "points": points,

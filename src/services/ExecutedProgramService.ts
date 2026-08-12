@@ -182,7 +182,9 @@ export class ExecutedProgramService {
         string,
         {
           segments?: Array<{
-            type?: string;
+            geometry?: string;
+            traversal?: string;
+            sourceCode?: string;
             lineNumber?: number;
             toolNumber?: number;
             points?: Array<{ x: number; y: number; z: number }>;
@@ -255,15 +257,21 @@ export class ExecutedProgramService {
         if (canal.segments && Array.isArray(canal.segments)) {
           canal.segments.forEach((segment) => {
             if (segment.points && segment.points.length >= 2) {
-              // Map server segment type to client type
-              let segmentType: 'rapid' | 'feed' | 'arc' = 'feed';
-              if (segment.type) {
-                const serverType = segment.type.toUpperCase();
-                if (serverType === 'RAPID' || serverType === 'G0') {
-                  segmentType = 'rapid';
-                } else if (serverType === 'ARC' || serverType === 'G2' || serverType === 'G3') {
-                  segmentType = 'arc';
-                }
+              let segmentType: 'rapid' | 'feed' | 'arc' | undefined;
+              const traversal = segment.traversal?.toUpperCase();
+              const geometry = segment.geometry?.toUpperCase();
+
+              if (traversal === 'RAPID') {
+                segmentType = 'rapid';
+              } else if (traversal === 'FEED' && (geometry === 'ARC_CW' || geometry === 'ARC_CCW')) {
+                segmentType = 'arc';
+              } else if (traversal === 'FEED' && geometry === 'LINEAR') {
+                segmentType = 'feed';
+              }
+
+              if (!segmentType) {
+                console.warn('Skipping segment without supported motion semantics:', segment);
+                return;
               }
 
               const mappedPoints = segment.points.map((point) => ({

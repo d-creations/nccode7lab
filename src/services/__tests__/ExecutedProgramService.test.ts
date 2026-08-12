@@ -25,7 +25,8 @@ describe('ExecutedProgramService', () => {
           '1': {
             segments: [
               {
-                type: 'RAPID',
+                geometry: 'LINEAR',
+                traversal: 'RAPID',
                 lineNumber: 1,
                 toolNumber: 1,
                 points: [
@@ -34,7 +35,8 @@ describe('ExecutedProgramService', () => {
                 ],
               },
               {
-                type: 'LINEAR',
+                geometry: 'LINEAR',
+                traversal: 'FEED',
                 lineNumber: 2,
                 toolNumber: 1,
                 points: [
@@ -113,7 +115,8 @@ describe('ExecutedProgramService', () => {
           '1': {
             segments: [
               {
-                type: 'LINEAR',
+                geometry: 'LINEAR',
+                traversal: 'FEED',
                 lineNumber: 1,
                 toolNumber: 1,
                 points: [
@@ -122,7 +125,8 @@ describe('ExecutedProgramService', () => {
                 ],
               },
               {
-                type: 'LINEAR',
+                geometry: 'LINEAR',
+                traversal: 'FEED',
                 lineNumber: 2,
                 toolNumber: 1,
                 points: [
@@ -151,7 +155,7 @@ describe('ExecutedProgramService', () => {
       expect(result.plotMetadata?.points).toHaveLength(3);
     });
 
-    it('should map segment types correctly', async () => {
+    it('should ignore legacy-only segment types', async () => {
       const mockResponse: PlotResponse = {
         canal: {
           '1': {
@@ -190,6 +194,52 @@ describe('ExecutedProgramService', () => {
         machineName: 'SIEMENS_MILL',
       });
 
+      expect(result.plotMetadata?.segments).toHaveLength(0);
+    });
+
+    it('should prefer explicit traversal and geometry semantics', async () => {
+      const mockResponse: PlotResponse = {
+        canal: {
+          '1': {
+            segments: [
+              {
+                geometry: 'LINEAR',
+                traversal: 'RAPID',
+                sourceCode: 'G00',
+                lineNumber: 1,
+                toolNumber: 1,
+                points: [
+                  { x: 0, y: 0, z: 0 },
+                  { x: 10, y: 0, z: 0 },
+                ],
+              },
+              {
+                geometry: 'ARC_CW',
+                traversal: 'FEED',
+                sourceCode: 'G02',
+                lineNumber: 2,
+                toolNumber: 1,
+                points: [
+                  { x: 10, y: 0, z: 0 },
+                  { x: 20, y: 10, z: 0 },
+                ],
+              },
+            ],
+            executedLines: [1, 2],
+            variables: {},
+            timing: [1.5, 0],
+          },
+        },
+      };
+
+      vi.mocked(mockBackend.requestPlot).mockResolvedValue(mockResponse);
+
+      const result = await service.executeProgram({
+        channelId: '1',
+        program: 'G0 X10\nG2 X20 Y10 R10',
+        machineName: 'SIEMENS_MILL',
+      });
+
       expect(result.plotMetadata?.segments[0].type).toBe('rapid');
       expect(result.plotMetadata?.segments[1].type).toBe('arc');
     });
@@ -200,7 +250,8 @@ describe('ExecutedProgramService', () => {
           '1': {
             segments: [
               {
-                type: 'LINEAR',
+                geometry: 'LINEAR',
+                traversal: 'FEED',
                 lineNumber: 4,
                 toolNumber: 1,
                 points: [
@@ -318,7 +369,8 @@ describe('ExecutedProgramService', () => {
           '1': {
             segments: [
               {
-                type: 'LINEAR',
+                geometry: 'LINEAR',
+                traversal: 'FEED',
                 lineNumber: 2,
                 toolNumber: 1,
                 points: [

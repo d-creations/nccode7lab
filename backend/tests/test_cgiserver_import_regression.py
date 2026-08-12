@@ -26,6 +26,56 @@ def _assert_close_tuple(left, right, tolerance=1e-4):
         assert abs(left_value - right_value) <= tolerance
 
 
+def test_build_segments_preserves_explicit_motion_semantics():
+    converted = api.build_segments_from_engine_output({
+        "programExec": [10, 20],
+        "plot": [
+            {
+                "x": [0.0, 5.0],
+                "y": [0.0, 0.0],
+                "z": [0.0, 0.0],
+                "t": 1.5,
+                "geometry": "LINEAR",
+                "traversal": "RAPID",
+                "sourceCode": "G00",
+                "lineNumber": 10,
+            },
+            {
+                "x": [5.0, 10.0],
+                "y": [0.0, 5.0],
+                "z": [0.0, 0.0],
+                "t": 0.0,
+                "geometry": "ARC_CW",
+                "traversal": "FEED",
+                "sourceCode": "G02",
+                "lineNumber": 20,
+            },
+        ],
+    })
+
+    assert "type" not in converted["segments"][0]
+    assert converted["segments"][0]["geometry"] == "LINEAR"
+    assert converted["segments"][1]["geometry"] == "ARC_CW"
+    assert converted["segments"][1]["traversal"] == "FEED"
+    assert converted["executedLines"] == [10, 20]
+
+
+def test_build_segments_does_not_infer_motion_from_timing():
+    converted = api.build_segments_from_engine_output({
+        "plot": [{
+            "x": [0.0, 1.0],
+            "y": [0.0, 0.0],
+            "z": [0.0, 0.0],
+            "t": 0.0,
+        }],
+    })
+
+    segment = converted["segments"][0]
+    assert "type" not in segment
+    assert segment["geometry"] is None
+    assert segment["traversal"] is None
+
+
 def test_nc_request_telemetry_uses_identity_without_program_content(monkeypatch):
     hmac_key = bytes(range(32))
     monkeypatch.setenv("TELEMETRY_USER_HMAC_KEY", base64.b64encode(hmac_key).decode("ascii"))

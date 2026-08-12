@@ -13,7 +13,7 @@ You can find the new version of the editor here: https://ncedit7.azurewebsites.n
 
 ![NC-Edit7 editor preview](https://raw.githubusercontent.com/d-creations/NC-Edit7/master/public/images/image.png)
 
-Static assets used by the web app and this README are stored under `public/favicon/` and `public/images/`.
+Platform-ready logo assets are stored under `public/branding/`; screenshots remain under `public/images/`.
 
 
 

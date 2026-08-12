@@ -72,7 +72,11 @@ export class PlotService {
     const color = segmentType ? colors[segmentType] : colors.default;
 
     if (segmentType === 'rapid') {
-      return new THREE.LineDashedMaterial({ color, dashSize: 2, gapSize: 1 });
+      return new THREE.LineDashedMaterial({
+        color,
+        dashSize: 0.35,
+        gapSize: 0.9,
+      });
     }
 
     return new THREE.LineBasicMaterial({ color });

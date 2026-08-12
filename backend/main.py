@@ -80,9 +80,12 @@ for directory in FRONTEND_DIRS:
 
 if STATIC_DIR is not None:
     favicon_dir = STATIC_DIR / "favicon"
+    branding_dir = STATIC_DIR / "branding"
     images_dir = STATIC_DIR / "images"
     if favicon_dir.exists():
         app.mount("/favicon", StaticFiles(directory=str(favicon_dir)), name="favicon")
+    if branding_dir.exists():
+        app.mount("/branding", StaticFiles(directory=str(branding_dir)), name="branding")
     if images_dir.exists():
         app.mount("/images", StaticFiles(directory=str(images_dir)), name="images")
 
@@ -291,4 +294,4 @@ async def favicon_svg():
 
 @app.get("/favicon.ico")
 async def favicon_ico():
-    return RedirectResponse(url="/favicon/favicon.svg", status_code=307)
+    return RedirectResponse(url="/branding/web/favicon-32.png", status_code=307)
