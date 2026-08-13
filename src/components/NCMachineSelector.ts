@@ -9,6 +9,8 @@ export class NCMachineSelector extends HTMLElement {
   private machineService: MachineService;
   private stateService: StateService;
   private eventBus: EventBus;
+  private machineTypeFilter: 'all' | 'mill' | 'turn' = 'all';
+  private controlTypeFilter: 'all' | 'fanuc' | 'siemens' = 'all';
 
   constructor() {
     super();
@@ -55,6 +57,11 @@ export class NCMachineSelector extends HTMLElement {
         :host {
           display: inline-block;
         }
+        .machine-selector-controls {
+          display: flex;
+          gap: 4px;
+          align-items: center;
+        }
         select {
           padding: 4px 8px;
           background: #3c3c3c;
@@ -62,6 +69,52 @@ export class NCMachineSelector extends HTMLElement {
           border: 1px solid #555;
           border-radius: 4px;
           cursor: pointer;
+        }
+        .machine-type-filter {
+          display: flex;
+          border: 1px solid #555;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .control-type-filter {
+          display: flex;
+          border: 1px solid #555;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .control-type-filter button {
+          min-width: 36px;
+          padding: 4px 6px;
+          background: #2d2d2d;
+          color: #d4d4d4;
+          border: 0;
+          border-right: 1px solid #555;
+          cursor: pointer;
+          font-size: 11px;
+        }
+        .control-type-filter button:last-child {
+          border-right: 0;
+        }
+        .control-type-filter button.active {
+          background: var(--vscode-button-background, #007acc);
+          color: var(--vscode-button-foreground, #ffffff);
+        }
+        .machine-type-filter button {
+          min-width: 36px;
+          padding: 4px 6px;
+          background: #2d2d2d;
+          color: #d4d4d4;
+          border: 0;
+          border-right: 1px solid #555;
+          cursor: pointer;
+          font-size: 11px;
+        }
+        .machine-type-filter button:last-child {
+          border-right: 0;
+        }
+        .machine-type-filter button.active {
+          background: var(--vscode-button-background, #007acc);
+          color: var(--vscode-button-foreground, #ffffff);
         }
 
         /* Mobile styles - make select bigger */
@@ -72,11 +125,29 @@ export class NCMachineSelector extends HTMLElement {
             min-height: 40px;
             min-width: 120px;
           }
+          .machine-type-filter button,
+          .control-type-filter button {
+            min-height: 40px;
+            padding: 8px;
+            font-size: 13px;
+          }
         }
       </style>
-      <select id="selector">
-        <option value="">Select Machine...</option>
-      </select>
+      <div class="machine-selector-controls">
+        <select id="selector">
+          <option value="">Select Machine...</option>
+        </select>
+        <div class="machine-type-filter" role="group" aria-label="Machine type filter">
+          <button type="button" data-machine-type="all" class="active" title="Show all machines">All</button>
+          <button type="button" data-machine-type="mill" title="Show mill machines">Mill</button>
+          <button type="button" data-machine-type="turn" title="Show turn and turn-mill machines">Turn</button>
+        </div>
+        <div class="control-type-filter" role="group" aria-label="Control type filter">
+          <button type="button" data-control-type="all" class="active" title="Show all controls">All</button>
+          <button type="button" data-control-type="fanuc" title="Show FANUC controls">Fanuc</button>
+          <button type="button" data-control-type="siemens" title="Show Siemens controls">Siemens</button>
+        </div>
+      </div>
     `;
   }
 
@@ -84,7 +155,7 @@ export class NCMachineSelector extends HTMLElement {
     const selector = this.shadowRoot?.getElementById('selector') as HTMLSelectElement;
     if (!selector) return;
 
-    const machines = this.machineService.getMachines();
+    const machines = this.getFilteredMachines();
     const currentState = this.stateService.getState();
     const currentMachine = currentState.globalMachine;
 
@@ -97,8 +168,12 @@ export class NCMachineSelector extends HTMLElement {
       selector.appendChild(option);
     });
 
-    if (currentMachine) {
-        selector.value = currentMachine;
+    const selectedMachine = machines.find((machine) => machine.machineName === currentMachine) ?? machines[0];
+    if (selectedMachine) {
+      selector.value = selectedMachine.machineName;
+      if (selectedMachine.machineName !== currentMachine) {
+        this.stateService.setGlobalMachine(selectedMachine.machineName);
+      }
     }
   }
 
@@ -111,6 +186,66 @@ export class NCMachineSelector extends HTMLElement {
         this.stateService.setGlobalMachine(machineType);
       }
     });
+
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>('[data-machine-type]').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.machineTypeFilter = button.dataset.machineType as 'all' | 'mill' | 'turn';
+        this.shadowRoot?.querySelectorAll('[data-machine-type]').forEach((filterButton) => {
+          filterButton.classList.toggle('active', filterButton === button);
+        });
+        this.ensureCompatibleFilters('machine-type');
+        this.updateOptions();
+      });
+    });
+
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>('[data-control-type]').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.controlTypeFilter = button.dataset.controlType as 'all' | 'fanuc' | 'siemens';
+        this.shadowRoot?.querySelectorAll('[data-control-type]').forEach((filterButton) => {
+          filterButton.classList.toggle('active', filterButton === button);
+        });
+        this.ensureCompatibleFilters('control-type');
+        this.updateOptions();
+      });
+    });
+  }
+
+  private matchesMachineTypeFilter(machine: MachineProfile): boolean {
+    if (this.machineTypeFilter === 'all') return true;
+
+    const machineType = machine.machineType?.toUpperCase() ?? '';
+    return this.machineTypeFilter === 'mill'
+      ? machineType === 'MILL'
+      : machineType === 'TURN' || machineType === 'TURN_MILL';
+  }
+
+  private getFilteredMachines(): MachineProfile[] {
+    return this.machineService.getMachines().filter((machine) =>
+      this.matchesMachineTypeFilter(machine) && this.matchesControlTypeFilter(machine),
+    );
+  }
+
+  private ensureCompatibleFilters(lastChanged: 'machine-type' | 'control-type'): void {
+    if (this.machineService.getMachines().length === 0 || this.getFilteredMachines().length > 0) return;
+
+    if (lastChanged === 'machine-type') {
+      this.controlTypeFilter = 'all';
+      this.updateActiveFilterButton('[data-control-type]', 'controlType', 'all');
+    } else {
+      this.machineTypeFilter = 'all';
+      this.updateActiveFilterButton('[data-machine-type]', 'machineType', 'all');
+    }
+  }
+
+  private updateActiveFilterButton(selector: string, dataKey: 'controlType' | 'machineType', value: string): void {
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>(selector).forEach((button) => {
+      button.classList.toggle('active', button.dataset[dataKey] === value);
+    });
+  }
+
+  private matchesControlTypeFilter(machine: MachineProfile): boolean {
+    return this.controlTypeFilter === 'all'
+      || machine.controlType?.toUpperCase() === this.controlTypeFilter.toUpperCase();
   }
 }
 

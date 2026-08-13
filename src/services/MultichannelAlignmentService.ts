@@ -187,7 +187,7 @@ export class MultichannelAlignmentService {
       .map((part) => {
         if (/^<(?:waitCode|marker)>$/i.test(part)) return '\\s*(\\d+)';
         if (/^<channels>$/i.test(part)) return this.escapeRegExp(channelNumbers);
-        return this.escapeRegExp(part).replace(/\\ /g, '\\s+');
+        return this.escapeRegExp(part).replace(/ /g, '\\s*');
       })
       .join('');
     return new RegExp(`${pattern}(?!\\d)`, 'i');

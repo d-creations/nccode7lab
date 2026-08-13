@@ -412,6 +412,7 @@ def list_machines() -> Dict[str, Any]:
             machine["regexPatterns"] = get_machine_regex_patterns(machine["controlType"])
         config = get_machine_config(machine["machineName"])
         machine["controlType"] = getattr(config, "control_type", machine["controlType"])
+        machine["machineType"] = getattr(config, "machine_type", "")
         machine["variablePrefix"] = getattr(config, "variable_prefix", "")
         file_extensions = getattr(config, "file_extensions", {})
         machine["fileExtensions"] = file_extensions if isinstance(file_extensions, dict) else {}

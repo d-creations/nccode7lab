@@ -172,6 +172,7 @@ def test_list_machines_uses_configured_control_family(monkeypatch):
     machine = {"machineName": "FANUC_MILL", "controlType": "FANUC_MILL"}
     config = SimpleNamespace(
         control_type="FANUC",
+        machine_type="MILL",
         variable_prefix="#",
         file_extensions={},
     )
@@ -182,6 +183,7 @@ def test_list_machines_uses_configured_control_family(monkeypatch):
     body = api.list_machines()
 
     assert body["machines"][0]["controlType"] == "FANUC"
+    assert body["machines"][0]["machineType"] == "MILL"
 
 
 def test_cgiserver_import_preserves_o0017_g112_xy_ij_parity_for_star_machine():

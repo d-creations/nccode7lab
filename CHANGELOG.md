@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [1.0.7] - 2026-08-13
+
+### Added
+- **Channel Spacing Controls**: Added `||` and `| |` header actions to add or remove one leading two-space prefix on every line of the clicked channel only.
+- **Machine Selector Filters**: Added `All`, `Mill`, and `Turn` filters (with turn-mill profiles included) plus `All`, `Fanuc`, and `Siemens` control-family filters. Filtering automatically selects an available configured machine and resolves incompatible filter combinations without leaving the selector empty.
+
 ## [1.0.6] - 2026-08-12
 
 ### Added

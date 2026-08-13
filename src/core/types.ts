@@ -42,6 +42,7 @@ export interface MachineRegexPatterns {
 export interface MachineProfile {
   machineName: MachineType;
   controlType: string;
+  machineType?: string;
   axes: string[];
   feedLimits: { min: number; max: number };
   defaultTools: ToolInfo[];
@@ -215,6 +216,7 @@ export interface FileExtensionConfig {
 export interface ServerMachineData {
   machineName: MachineType;
   controlType: string;
+  machineType?: string;
   variablePrefix?: string;
   regexPatterns?: MachineRegexPatterns;
   fileExtensions?: FileExtensionConfig;

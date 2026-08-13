@@ -71,6 +71,8 @@ export class NCChannelPane extends HTMLElement {
     const programsToggle = this.querySelector('#programs-toggle');
     const alignButton = this.querySelector('#align-channels') as HTMLButtonElement | null;
     const removeAlignmentButton = this.querySelector('#remove-alignment') as HTMLButtonElement | null;
+    const addSpacesButton = this.querySelector('#add-spaces') as HTMLButtonElement | null;
+    const removeSpacesButton = this.querySelector('#remove-spaces') as HTMLButtonElement | null;
     
     const keywordPanel = this.querySelector('nc-keyword-panel') as HTMLElement;
     const toolsPanel = this.querySelector('.channel-tools-panel') as HTMLElement;
@@ -127,6 +129,8 @@ export class NCChannelPane extends HTMLElement {
     overlay?.addEventListener('click', hideSidebar);
     alignButton?.addEventListener('click', () => this.updateChannelAlignment('align'));
     removeAlignmentButton?.addEventListener('click', () => this.updateChannelAlignment('remove'));
+    addSpacesButton?.addEventListener('click', () => this.updateChannelSpacing('add'));
+    removeSpacesButton?.addEventListener('click', () => this.updateChannelSpacing('remove'));
 
     // Plot button
     const plotButton = this.querySelector('#plot-channel-btn');
@@ -206,6 +210,18 @@ export class NCChannelPane extends HTMLElement {
     } finally {
       buttons.forEach((button) => { button.disabled = false; });
     }
+  }
+
+  private updateChannelSpacing(action: 'add' | 'remove'): void {
+    const activeProgram = this.fileManager.getActiveProgram(this.channelId);
+    if (!activeProgram) return;
+
+    const content = activeProgram.content.replace(/\r\n/g, '\n');
+    const updatedContent = action === 'add'
+      ? content.split('\n').map((line) => `  ${line}`).join('\n')
+      : content.split('\n').map((line) => line.startsWith('  ') ? line.slice(2) : line).join('\n');
+
+    this.fileManager.updateActiveProgramContent(this.channelId, updatedContent);
   }
 
   private render() {
@@ -346,6 +362,8 @@ export class NCChannelPane extends HTMLElement {
         <div class="channel-controls">
           <button class="channel-button alignment-button" id="align-channels" title="Align active channels and synchronize scrolling" aria-label="Align active channels">=</button>
           <button class="channel-button alignment-button" id="remove-alignment" title="Remove channel alignment and stop synchronized scrolling" aria-label="Remove channel alignment">/=</button>
+          <button class="channel-button alignment-button" id="add-spaces" title="Add two leading spaces to every line in this channel" aria-label="Add spaces to every line">||</button>
+          <button class="channel-button alignment-button" id="remove-spaces" title="Remove two leading spaces from every line in this channel" aria-label="Remove spaces from every line">| |</button>
           <button class="channel-button" id="programs-toggle">Programs</button>
           <button class="channel-button" id="plot-channel-btn">▶️ Plot</button>
           <button class="channel-button mobile-sidebar-toggle" id="sidebar-toggle">Tools & Keywords</button>

@@ -51,6 +51,7 @@ export class MachineService {
     return {
       machineName: data.machineName,
       controlType: data.controlType,
+      machineType: data.machineType,
       axes: ['X', 'Y', 'Z'],
       feedLimits: { min: 0, max: 10000 },
       defaultTools: [],

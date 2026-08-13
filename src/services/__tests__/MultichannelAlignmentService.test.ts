@@ -65,4 +65,36 @@ describe('MultichannelAlignmentService', () => {
     expect(result.alignmentCount).toBe(0);
     expect(result.programs).toEqual(programs);
   });
+
+  it('aligns compact FANUC three-channel wait-code selectors', async () => {
+    getLineAlignmentSyntax.mockResolvedValue({
+      lineAlignmentSyntax: [
+        {
+          controlType: 'FANUC',
+          waitCodeRange: { min: 200, max: 899 },
+          threeChannel: {
+            syntax: 'M<waitCode> P<channels>',
+            selectors: ['P123'],
+          },
+        },
+      ],
+      success: true,
+    });
+
+    const result = await service.alignPrograms(
+      [
+        { channelId: '1', program: 'M200P123\nG1 X1\nM202P123' },
+        { channelId: '2', program: 'G1 Z1\nM200P123\nM202P123' },
+        { channelId: '3', program: 'M200P123\nM202P123' },
+      ],
+      'FANUC',
+    );
+
+    expect(result.alignmentCount).toBe(4);
+    expect(result.programs.map(({ program }) => program)).toEqual([
+      '  \nM200P123\nG1 X1\nM202P123',
+      'G1 Z1\nM200P123\n  \nM202P123',
+      '  \nM200P123\n  \nM202P123',
+    ]);
+  });
 });
